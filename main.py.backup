@@ -1,0 +1,234 @@
+from flask import Flask, render_template, jsonify, request
+from instagram_service import fetch_recent_media, fetch_insights, save_to_file
+from datetime import datetime
+import json
+
+# Create Flask app
+application = Flask(__name__)
+
+# In-memory database
+artworks_db = {}
+financial_db = {
+    "the_key": {"target": 6000, "current": 0},
+    "freedom_fuel": {"target": 10000, "current": 0},
+    "apv_total": 0
+}
+
+# ========== DASHBOARD ROUTES ==========
+
+@application.route('/')
+@application.route('/health')
+def health_check():
+    """Root endpoint - health check"""
+    return jsonify({
+        "system": "Regenesis Hub V8.0",
+        "status": "operational",
+        "dashboard": "available at /dashboard",
+        "api": "available at /api/dashboard",
+        "instagram_api": "available at /api/instagram/media and /api/instagram/insights",
+        "timestamp": datetime.now().isoformat()
+    })
+
+@application.route('/dashboard')
+def dashboard():
+    """Main dashboard page"""
+    return render_template('dashboard.html')
+
+@application.route('/api/dashboard')
+def api_dashboard():
+    """Dashboard API"""
+    try:
+        total_artworks = len(artworks_db)
+        artworks_in_progress = len([a for a in artworks_db.values() if a.get("status") == "in_progress"])
+        
+        return jsonify({
+            "dashboard": {
+                "status": "live",
+                "timestamp": datetime.now().isoformat(),
+                "metrics": {
+                    "hub": "online",
+                    "artworks_total": total_artworks,
+                    "artworks_active": artworks_in_progress
+                }
+            }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@application.route('/api/command', methods=['POST'])
+def api_command():
+    """Command API - process commands from dashboard"""
+    data = request.get_json() or {}
+    command = data.get('command', '').lower()
+    
+    responses = {
+        'cycle subjects': {
+            "response": """Generating 3 UNFILTERED COMMERCIAL suggestions...
+            
+1. 🐕 Custom Pet Portrait (Golden Retriever)
+   • Tier: 1 | Target: $75-100
+   • Market: High demand on eBay
+   • ETC: 2-3 hours
+            
+2. 🏔️ Mountain Landscape at Sunset
+   • Tier: 2 | Target: $450-600  
+   • Market: Consistent collector interest
+   • ETC: 8-10 hours
+            
+3. 🔺 Abstract Geometric Pattern
+   • Tier: 1 | Target: $60-80
+   • Market: Modern decor trend
+   • ETC: 3-4 hours
+            
+Command: 'Accept subject #[1-3]'"""
+        },
+        'update metrics': {
+            "response": "Dashboard metrics refreshed from live CMHP sync."
+        },
+        'genesis sprint': {
+            "response": "🔥 GENESIS SPRINT ACTIVATED 🔥\nPhase 1: Ceremonial Selection\nPhase 2: Ritual Preparation\nPhase 3: First Stroke Ceremony"
+        },
+        'show alerts': {
+            "response": "🔴 ACTIVE ALERTS:\n1. Genesis Quest selection pending\n2. Zero eBay listings\n3. YouTube pipeline empty"
+        }
+    }
+    
+    if command in responses:
+        return jsonify(responses[command])
+    else:
+        return jsonify({
+            "response": f"Processing: '{command}'\nConnecting to DeepSeek API..."
+        })
+
+# ========== INSTAGRAM ROUTES ==========
+
+@application.route('/api/instagram/media')
+def api_instagram_media():
+    """Fetch recent Instagram media"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        data = fetch_recent_media(limit)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@application.route('/api/instagram/insights')
+def api_instagram_insights():
+    """Fetch Instagram insights"""
+    try:
+        metric = request.args.get('metric', 'impressions,reach,profile_views')
+        period = request.args.get('period', 'day')
+        data = fetch_insights(metric, period)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@application.route('/cron/update-instagram', methods=['POST'])
+def cron_update_instagram():
+    """Cron job endpoint for updating Instagram data"""
+    try:
+        media_data = fetch_recent_media(limit=25)
+        media_file = save_to_file(media_data, 'instagram_media_latest.json')
+        
+        insights_data = fetch_insights()
+        insights_file = save_to_file(insights_data, 'instagram_insights_latest.json')
+        
+        return jsonify({
+            "status": "success",
+            "media_file": media_file,
+            "insights_file": insights_file,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ========== EMAIL INGESTION ==========
+
+@application.route('/api/ingest-emails', methods=['POST'])
+def api_ingest_emails():
+    """Ingest emails from Gmail"""
+    try:
+        data = request.get_json()
+        
+        # Log receipt
+        print(f"Received email ingestion: {len(data.get('emails', []))} emails")
+        
+        # Store in database (expand this later)
+        if 'emails' not in financial_db:
+            financial_db['emails'] = []
+        
+        financial_db['emails'].extend(data.get('emails', []))
+        
+        return jsonify({
+            "status": "success",
+            "received": len(data.get('emails', [])),
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ========== STATE API ==========
+
+@application.route('/state/latest')
+def state_latest():
+    """Get latest system state"""
+    try:
+        # Get email ingestion data if it exists
+        email_data = financial_db.get('emails', [])
+        last_emails = email_data[-5:] if email_data else []
+        
+        # Combine all business data into one state object
+        state = {
+            "timestamp": datetime.now().isoformat(),
+            "genesis_quest": {
+                "status": "selection_pending",
+                "phase": 1,
+                "hours_logged": financial_db.get("vision_hours", 0),
+                "apv_accrued": financial_db.get("apv_total", 0)
+            },
+            "financial": {
+                "the_key": financial_db.get("the_key", {"current": 0}),
+                "freedom_fuel": financial_db.get("freedom_fuel", {"current": 0}),
+                "apv_total": financial_db.get("apv_total", 0)
+            },
+            "artworks": {
+                "total": len(artworks_db),
+                "in_progress": len([a for a in artworks_db.values() if a.get("status") == "in_progress"]),
+                "completed": len([a for a in artworks_db.values() if a.get("status") == "completed"])
+            },
+            "email_ingestion": {
+                "last_batch": last_emails,
+                "total_processed": len(email_data)
+            }
+        }
+        return jsonify(state)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@application.route('/api/instagram-data', methods=['POST'])
+def api_instagram_data():
+    """Receive Instagram data"""
+    try:
+        data = request.get_json()
+        
+        if 'instagram_data' not in financial_db:
+            financial_db['instagram_data'] = []
+        
+        financial_db['instagram_data'].append(data)
+        print(f"📸 Instagram data received: {data.get('data', {}).get('user', {}).get('username')}")
+        
+        return jsonify({
+            "status": "success",
+            "received": True,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ========== RUN ==========
+
+if __name__ == "__main__":
+    application.run(debug=True, host="0.0.0.0", port=8080)
+app = application

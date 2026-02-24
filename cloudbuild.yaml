@@ -1,0 +1,9 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/regenesis-hub', '.']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/regenesis-hub']
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  args: ['gcloud', 'run', 'deploy', 'regenesis-hub-v2', '--image', 'gcr.io/$PROJECT_ID/regenesis-hub', '--region', 'us-central1', '--allow-unauthenticated']
+images:
+- 'gcr.io/$PROJECT_ID/regenesis-hub'

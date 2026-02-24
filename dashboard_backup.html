@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CMHP Automation Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #0a0a0a; color: #fff; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; padding: 20px; background: #1a1a2e; border-radius: 10px; }
+        h1 { color: #00ff88; margin-bottom: 10px; }
+        .status-bar { background: #1e1e2e; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        .pillars-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .pillar-card { background: #1a1a2e; border-radius: 10px; padding: 20px; }
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 30px 0; }
+        button { background: #00aaff; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; }
+        .log-entry { padding: 10px; margin: 5px 0; background: #2a2a3e; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>CMHP AUTOMATION DASHBOARD</h1>
+            <div>Sovereign Hub: https://regenesis-hub-v1-510958561702.us-central1.run.app</div>
+            <div>Days Remaining: <span id="days-remaining">216</span> | APV: $<span id="total-apv">0</span></div>
+        </header>
+
+        <div class="pillars-grid" id="pillars-container">
+            <!-- Pillars loaded here -->
+        </div>
+
+        <div class="controls">
+            <button onclick="refreshData()">🔄 Refresh</button>
+            <button onclick="simulatePainting()">🎨 Simulate Painting</button>
+            <button onclick="updateHealth()">🏥 Update Health</button>
+            <button onclick="evaluateRules()">⚡ Evaluate Rules</button>
+        </div>
+
+        <div id="log-container">
+            <!-- Logs appear here -->
+        </div>
+    </div>
+
+    <script>
+        const HUB_URL = "https://regenesis-hub-v1-510958561702.us-central1.run.app";
+
+        async function loadCMHPState() {
+            try {
+                const response = await fetch(HUB_URL + "/cmhp/state");
+                const data = await response.json();
+                
+                document.getElementById("days-remaining").textContent = data.pillars.temporal.days_remaining;
+                document.getElementById("total-apv").textContent = data.pillars.financial_escape.apv;
+                
+                const container = document.getElementById("pillars-container");
+                container.innerHTML = "";
+                
+                for (const [pillar, values] of Object.entries(data.pillars)) {
+                    const card = document.createElement("div");
+                    card.className = "pillar-card";
+                    card.innerHTML = `<h3>${pillar.replace("_", " ").toUpperCase()}</h3>`;
+                    
+                    for (const [key, value] of Object.entries(values)) {
+                        card.innerHTML += `<div>${key}: ${value}</div>`;
+                    }
+                    
+                    container.appendChild(card);
+                }
+            } catch (error) {
+                addLog("Error loading data: " + error);
+            }
+        }
+
+        function addLog(message) {
+            const container = document.getElementById("log-container");
+            const entry = document.createElement("div");
+            entry.className = "log-entry";
+            entry.textContent = new Date().toLocaleTimeString() + " - " + message;
+            container.appendChild(entry);
+        }
+
+        async function simulatePainting() {
+            addLog("Simulating painting...");
+            await fetch(HUB_URL + "/log", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({type: "painting_progress", hours: 2})
+            });
+            addLog("Painting simulated");
+            setTimeout(loadCMHPState, 1000);
+        }
+
+        async function updateHealth() {
+            addLog("Updating health...");
+            await fetch(HUB_URL + "/cmhp/state", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({pillars: {bodily_regeneration: {sleep: 6.5, energy: 7}}})
+            });
+            addLog("Health updated");
+            setTimeout(loadCMHPState, 1000);
+        }
+
+        async function evaluateRules() {
+            addLog("Evaluating rules...");
+            const response = await fetch(HUB_URL + "/cmhp/evaluate", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"}
+            });
+            const data = await response.json();
+            addLog(data.triggered_actions.length + " rules triggered");
+        }
+
+        function refreshData() {
+            loadCMHPState();
+            addLog("Data refreshed");
+        }
+
+        // Initial load
+        loadCMHPState();
+    </script>
+</body>
+</html>
